@@ -1,0 +1,9 @@
+This python script is designed to count the tutor hours for each week in CSE 8A Fall 2017.
+
+Directions:
+
+Usage:
+0. Update tutor names in the dictionary along with the calendar id
+1. Change the desire date representing the range of the week
+2. run the script by typing:
+	python3 count.py
