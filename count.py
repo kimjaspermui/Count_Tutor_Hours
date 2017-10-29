@@ -83,6 +83,10 @@ def countTutors(service):
     for event in events['items']:
         if event['status'] != 'cancelled' and 'Tutor hour' in event['summary'] and 'TBD' not in event['summary']:
             print(event['summary'], event['start'])
+            summary = event['summary']
+            summary = summary[summary.find("(")+1:summary.find(")")]
+            listOfTutors = [t.strip() for t in summary.strip().split(",")]
+            print(listOfTutors)
 
 def main():
     """Shows basic usage of the Google Calendar API.
