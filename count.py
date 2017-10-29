@@ -8,6 +8,7 @@ from oauth2client import client
 from oauth2client import tools
 from oauth2client.file import Storage
 import urllib.request
+import re
 
 import datetime
 
@@ -64,7 +65,7 @@ def readData():
     
     # this will read all tutors' names in google calendar mapping to their name
     print("Reading tutors map...")
-    tutorsMap = list(parseData("tutors map.json"))
+    tutorsMap = list(parseData("tutors map.json"))[0]
     print("done")
 
     return tutors, tutorsMap
@@ -79,14 +80,29 @@ def countTutors(service):
     timeTo = '2017-10-28T23:59:59-07:00'
 
     # get all of the events in this week
-    events = service.events().list(calendarId=calId, timeMin=timeFrom, timeMax=timeTo, singleEvents=True, orderBy='startTime').execute()
+    events = service.events().list(calendarId=calId, timeMin=timeFrom,
+        timeMax=timeTo, singleEvents=True, orderBy='startTime').execute()
+    
+    # iterate through all of the events in this week
     for event in events['items']:
+
+        # get only those with title: Tutor hour with no TBD
         if event['status'] != 'cancelled' and 'Tutor hour' in event['summary'] and 'TBD' not in event['summary']:
-            print(event['summary'], event['start'])
+
+            # parse the list of tutors in this event
             summary = event['summary']
-            summary = summary[summary.find("(")+1:summary.find(")")]
-            listOfTutors = [t.strip() for t in summary.strip().split(",")]
-            print(listOfTutors)
+            summary = summary[summary.find("(")+1:len(summary)-1]
+            listOfTutors = [t.strip() for t in re.split(',|，', summary)]
+
+            for tutor in listOfTutors:
+                if tutor not in tutorsMap:
+                    print("This tutor doesn't exist in map: %s" % (tutor))
+                else:
+                    name = tutorsMap[tutor]
+                    tutors[name] += 1
+
+    print(tutors)
+            
 
 def main():
     """Shows basic usage of the Google Calendar API.
