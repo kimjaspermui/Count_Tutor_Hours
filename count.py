@@ -7,6 +7,7 @@ from apiclient import discovery
 from oauth2client import client
 from oauth2client import tools
 from oauth2client.file import Storage
+import urllib.request
 
 import datetime
 
@@ -51,11 +52,33 @@ def get_credentials():
         print('Storing credentials to ' + credential_path)
     return credentials
 
+def parseData(fname):
+    for l in open(fname):
+        yield eval(l)
+
+def readData():
+    # this will read all tutors and initialize its count
+    print("Reading tutors...")
+    tutors = {t: 0 for t in list(parseData("tutors"))}
+    print("done")
+    
+    # this will read all tutors' names in google calendar mapping to their name
+    print("Reading tutors map...")
+    tutorsMap = list(parseData("tutors map.json"))
+    print("done")
+
+    return tutors, tutorsMap
+
 def countTutors(service):
+
+    tutors, tutorsMap = readData()
+
+    # this is the calendar id with the time range of the week
     calId = 'eng.ucsd.edu_9tdstr4ijgre5bnu5grsh3kf6g@group.calendar.google.com'
     timeFrom = '2017-10-22T10:00:00-07:00'
     timeTo = '2017-10-28T23:59:59-07:00'
 
+    # get all of the events in this week
     events = service.events().list(calendarId=calId, timeMin=timeFrom, timeMax=timeTo, singleEvents=True, orderBy='startTime').execute()
     for event in events['items']:
         if event['status'] != 'cancelled' and 'Tutor hour' in event['summary'] and 'TBD' not in event['summary']:
