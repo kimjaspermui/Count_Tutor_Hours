@@ -1,12 +1,19 @@
 This python script is designed to count the tutor hours from Google Calendar
 for each week in CSE 8A Fall 2017.
 
-Directions:
-1. Follow the Quickstart direction for Google Calendar to set up the environment:
+Problem:
 
+Directions:
+1. Follow Step 1 and Step 2 in the Quickstart direction for Google Calendar to set up the environment:
+https://developers.google.com/google-apps/calendar/quickstart/python
+2. Make sure you've downloaded the "client_secret.json" json file
+3. Place it on the same director as "count.py"
+4. List all tutors in the file named "tutors"
+5. Now, follow the usage
 
 Usage:
-0. Update tutor names in the dictionary along with the calendar id
+0. Update tutor names in the “tutors map.json” along with the calendar id. (Name in Calendar: Name in Roster)
 1. Change the desire date representing the range of the week
 2. run the script by typing:
 	python3 count.py
+3. The order of the count is the order in "tutors" file
