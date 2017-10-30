@@ -2,6 +2,8 @@ This python script is designed to count the tutor hours from Google Calendar
 for each week in CSE 8A Fall 2017.
 
 Directions:
+1. Follow the Quickstart direction for Google Calendar to set up the environment:
+
 
 Usage:
 0. Update tutor names in the dictionary along with the calendar id
