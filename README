@@ -2,9 +2,7 @@ This python script is designed to count the tutor hours from Google Calendar
 for each week in CSE 8A Fall 2017.
 
 Problem:
-- Tutor hours are registered in Google Calendar events in the format of Tutor hours (name1, name2, ...).
-It's hard and tidious to keep track of all tutor hours manually as it also changes quite frequent.
-To solve this problem, this program counts the tutor names from the Google Calendar then print.
+- Tutor hours are registered in Google Calendar events in the format of Tutor hours (name1, name2, ...). It's hard and tedious to keep track of all tutor hours manually as it also changes quite frequent. To solve this problem, this program counts the tutor names from the Google Calendar then print.
 
 Directions:
 1. Follow Step 1 and Step 2 in the Quickstart direction for Google Calendar to set up the environment:
@@ -27,3 +25,4 @@ How to delete TBD tutor houts:
 2. Change the desire date representing the range of the week (usually we just need to change the month and day)
 3. run the script by typing:
 	python3 count.py
+4. Make sure to change the delete boolean to False afterwards

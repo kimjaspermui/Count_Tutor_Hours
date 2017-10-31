@@ -81,8 +81,8 @@ def countTutors(service):
 
     # this is the calendar id with the time range of the week
     calId = 'eng.ucsd.edu_9tdstr4ijgre5bnu5grsh3kf6g@group.calendar.google.com'
-    timeFrom = '2017-10-22T10:00:00-07:00'
-    timeTo = '2017-10-28T23:59:59-07:00'
+    timeFrom = '2017-10-15T10:00:00-07:00'
+    timeTo = '2017-10-21T23:59:59-07:00'
 
     # get all of the events in this week
     events = service.events().list(calendarId=calId, timeMin=timeFrom,
