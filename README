@@ -20,7 +20,7 @@ How to count tutor hours:
 	python3 count.py
 3. The order of the count is the order in "tutors" file
 
-How to delete TBD tutor houts:
+How to delete TBD tutor hours:
 1. Make sure delete boolean is set to True in countTutors function
 2. Change the desire date representing the range of the week (usually we just need to change the month and day)
 3. run the script by typing:
