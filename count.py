@@ -20,7 +20,7 @@ except ImportError:
 
 # If modifying these scopes, delete your previously saved credentials
 # at ~/.credentials/calendar-python-quickstart.json
-SCOPES = 'https://www.googleapis.com/auth/calendar.readonly'
+SCOPES = 'https://www.googleapis.com/auth/calendar'
 CLIENT_SECRET_FILE = 'client_secret.json'
 APPLICATION_NAME = 'Google Calendar API Python Quickstart'
 
@@ -72,12 +72,17 @@ def readData():
 
 def countTutors(service):
 
+    # boolean to see if we need to delete TBD
+    delete = False
+    eventToDelete = []
+
+    # read tutor info
     tutors, tutorsMap = readData()
 
     # this is the calendar id with the time range of the week
     calId = 'eng.ucsd.edu_9tdstr4ijgre5bnu5grsh3kf6g@group.calendar.google.com'
-    timeFrom = '2017-10-29T10:00:00-07:00'
-    timeTo = '2017-11-04T23:59:59-07:00'
+    timeFrom = '2017-10-22T10:00:00-07:00'
+    timeTo = '2017-10-28T23:59:59-07:00'
 
     # get all of the events in this week
     events = service.events().list(calendarId=calId, timeMin=timeFrom,
@@ -85,6 +90,10 @@ def countTutors(service):
     
     # iterate through all of the events in this week
     for event in events['items']:
+
+        # code to delete the tutor hours with TBD
+        if delete and 'Tutor hour' in event['summary'] and 'TBD' in event ['summary']:
+            eventToDelete.append(event['id'])
 
         # get only those with title: Tutor hour with no TBD
         if event['status'] != 'cancelled' and 'Tutor hour' in event['summary'] and 'TBD' not in event['summary']:
@@ -101,11 +110,17 @@ def countTutors(service):
                     name = tutorsMap[tutor]
                     tutors[name] += 1
 
+    # print tutor hours count
     for tutor, count in tutors.items():
         print("%d" % (count))
 
+    # print tutor names in excel order
     for tutor, count in tutors.items():
         print("%s" % (tutor))
+
+    # delete TBD events
+    for eventId in eventToDelete:
+        service.events().delete(calendarId=calId, eventId=eventId).execute()
             
 
 def main():
