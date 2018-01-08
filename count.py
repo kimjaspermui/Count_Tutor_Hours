@@ -22,7 +22,7 @@ except ImportError:
 # at ~/.credentials/calendar-python-quickstart.json
 SCOPES = 'https://www.googleapis.com/auth/calendar'
 CLIENT_SECRET_FILE = 'client_secret.json'
-APPLICATION_NAME = 'Google Calendar API Python Quickstart'
+APPLICATION_NAME = 'Google Calendar'
 
 
 def get_credentials():
@@ -60,12 +60,12 @@ def parseData(fname):
 def readData():
     # this will read all tutors and initialize its count
     print("Reading tutors...")
-    tutors = {t: 0 for t in list(parseData("tutors"))}
+    tutors = {t: 0 for t in list(parseData("tutors 8B"))}
     print("done")
     
     # this will read all tutors' names in google calendar mapping to their name
     print("Reading tutors map...")
-    tutorsMap = list(parseData("tutors map.json"))[0]
+    tutorsMap = list(parseData("tutors map 8B.json"))[0]
     print("done")
 
     return tutors, tutorsMap
@@ -80,9 +80,9 @@ def countTutors(service):
     tutors, tutorsMap = readData()
 
     # this is the calendar id with the time range of the week
-    calId = 'eng.ucsd.edu_9tdstr4ijgre5bnu5grsh3kf6g@group.calendar.google.com'
-    timeFrom = '2017-10-15T10:00:00-07:00'
-    timeTo = '2017-10-21T23:59:59-07:00'
+    calId = 'eng.ucsd.edu_cprroni4e75jsicjt9bv26nm74@group.calendar.google.com'
+    timeFrom = '2018-01-08T10:00:00-07:00'
+    timeTo = '2018-01-13T23:59:59-07:00'
 
     # get all of the events in this week
     events = service.events().list(calendarId=calId, timeMin=timeFrom,
@@ -92,11 +92,11 @@ def countTutors(service):
     for event in events['items']:
 
         # code to delete the tutor hours with TBD
-        if delete and 'Tutor hour' in event['summary'] and 'TBD' in event ['summary']:
+        if delete and 'Tutor Hour' in event['summary'] and 'TBD' in event['summary']:
             eventToDelete.append(event['id'])
 
         # get only those with title: Tutor hour with no TBD
-        if event['status'] != 'cancelled' and 'Tutor hour' in event['summary'] and 'TBD' not in event['summary']:
+        if event['status'] != 'cancelled' and 'Tutor Hour' in event['summary'] and 'TBD' not in event['summary']:
 
             # parse the list of tutors in this event
             summary = event['summary']
@@ -121,7 +121,32 @@ def countTutors(service):
     # delete TBD events
     for eventId in eventToDelete:
         service.events().delete(calendarId=calId, eventId=eventId).execute()
-            
+
+def updateTitle(service):
+    '''This function will update the title into correct format:'''
+    '''Tutor Hours (Names)'''
+    
+    # this is the calendar id with the time range of the week
+    calId = 'eng.ucsd.edu_cprroni4e75jsicjt9bv26nm74@group.calendar.google.com'
+    timeFrom = '2018-01-08T10:00:00-07:00'
+    timeTo = '2018-01-13T23:59:59-07:00'
+
+    # get all of the events in this week
+    events = service.events().list(calendarId=calId, timeMin=timeFrom,
+        timeMax=timeTo, singleEvents=True, orderBy='startTime').execute()        
+
+    # iterate through all of the events in this week
+    for i, event in enumerate(events['items']):
+
+        # get only those with title: Tutor hour with no TBD
+        if event['status'] != 'cancelled' and 'tutor hour' in event['summary'].lower():
+
+            # reformat the title
+            openIndex = event['summary'].find('(')
+            closeIndex = event['summary'].find(')')
+            event['summary'] = 'Tutor Hour (' + event['summary'][openIndex+1:closeIndex] + ')'
+            updated_event = service.events().update(calendarId=calId, eventId=event['id'], body=event).execute()
+
 
 def main():
     """Shows basic usage of the Google Calendar API.
@@ -133,6 +158,7 @@ def main():
     http = credentials.authorize(httplib2.Http())
     service = discovery.build('calendar', 'v3', http=http)
 
+    #updateTitle(service)
     countTutors(service)
 
 if __name__ == '__main__':
