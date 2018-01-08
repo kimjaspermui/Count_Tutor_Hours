@@ -73,7 +73,7 @@ def readData():
 def countTutors(service):
 
     # boolean to see if we need to delete TBD
-    delete = False
+    delete = True
     eventToDelete = []
 
     # read tutor info
