@@ -15,6 +15,7 @@ import pickle
 import os.path
 from collections import defaultdict
 from enum import Enum
+import json
 
 class TaskInfo(Enum):
     TIMESTAMP = 0
@@ -27,6 +28,11 @@ class TaskInfo(Enum):
 # need an index to store from which request to process
 masterReport = defaultdict(list)
 masterTasks = list()
+
+# data
+tutors = list()
+tutorsMap = list()
+names = defaultdict()
 
 try:
     import argparse
@@ -47,6 +53,15 @@ TIME_TO = '2018-03-17T23:59:59-07:00'
 def myPrint(data):
     for line in data:
         print(line)
+
+def convertToDatetime(date, time):
+
+    month, day, year = [int(s) for s in date.split('/')]
+    startTime = time.split('-')[0]
+    hour, minute, second = [int(s) for s in startTime.split(':')]
+
+    myDatetime = datetime.datetime(year, month, day, hour, minute, second)
+    print("datetime: " + str(myDatetime))
 
 def get_credentials():
     """Gets valid user credentials from storage.
@@ -81,6 +96,10 @@ def parseData(fname):
         yield eval(l)
 
 def readData():
+
+    global names
+
+    # TODO: Don't need these
     # this will read all tutors and initialize its count
     print("Reading tutors...")
     tutors = {t: 0 for t in list(parseData("tutors 8B"))}
@@ -90,6 +109,8 @@ def readData():
     print("Reading tutors map...")
     tutorsMap = list(parseData("tutors map 8B.json"))[0]
     print("done")
+
+    names = json.load(open('names.json'))
 
     return tutors, tutorsMap
 
@@ -171,12 +192,14 @@ def updateTitle(service):
             updated_event = service.events().update(calendarId=CAL_ID, eventId=event['id'], body=event).execute()
 
 def readMasterReport():
+    '''function to readin master report map from file'''
     global masterReport
     if os.path.isfile("masterReport.txt") :
         with open("masterReport.txt", "rb") as myFile:
             masterReport = pickle.load(myFile)
 
 def writeMasterReport():
+    '''function to print out report & write out master report map to file'''
     global masterReport
     for k, v in sorted(masterReport.items()):
         print(k)
@@ -186,7 +209,24 @@ def writeMasterReport():
     with open("masterReport.txt", "wb") as myFile:
         pickle.dump(masterReport, myFile)
 
+def addRequest(myTask):
+    '''function to add hour to calendar if it passes the condition'''
+    print(myTask[TaskInfo.EMAIL.value])
+    myName = names[myTask[TaskInfo.EMAIL.value]]
+
+    # get the datetime format of the current and future time
+    #timestamp = 
+    futureTime = convertToDatetime(myTask[TaskInfo.DATE.value], myTask[TaskInfo.TIME.value])
+
+
+
+
+
+def removeRequest(myTask):
+    '''function to remove hour to calendar if it passes the condition'''
+
 def readRequests():
+    ''' function to read in the requests from google forms'''
     global masterTasks
     if os.path.isfile("requests.txt"):
         with open ("requests.txt") as myFile:
@@ -197,14 +237,14 @@ def readRequests():
 
     myPrint(masterTasks)
 
-def addRequest(myTask):
-
-
 def processRequests():
-    
+    '''function to distribute task processing in the tasks read in'''
     # need an index to jump to the new process
     for task in masterTasks:
-        if task[2] == 
+        if task[2] == 'Add':
+            addRequest(task)
+        elif task[2] == 'Remove':
+            addRequest(task)
 
 def main():
     """Shows basic usage of the Google Calendar API.
@@ -216,6 +256,10 @@ def main():
     http = credentials.authorize(httplib2.Http())
     service = discovery.build('calendar', 'v3', http=http)
 
+    # read names to be input to calendar
+    readData()
+
+    # read requests and process them
     readRequests()
     processRequests()
 
