@@ -11,6 +11,22 @@ import urllib.request
 import re
 
 import datetime
+import pickle
+import os.path
+from collections import defaultdict
+from enum import Enum
+
+class TaskInfo(Enum):
+    TIMESTAMP = 0
+    EMAIL = 1
+    TASK = 2
+    DATE = 3
+    TIME = 4
+    SPECIAL = 5
+
+# need an index to store from which request to process
+masterReport = defaultdict(list)
+masterTasks = list()
 
 try:
     import argparse
@@ -24,6 +40,13 @@ SCOPES = 'https://www.googleapis.com/auth/calendar'
 CLIENT_SECRET_FILE = 'client_secret.json'
 APPLICATION_NAME = 'Google Calendar'
 
+CAL_ID = 'eng.ucsd.edu_cprroni4e75jsicjt9bv26nm74@group.calendar.google.com'
+TIME_FROM = '2018-03-01T00:00:00-07:00'
+TIME_TO = '2018-03-17T23:59:59-07:00'
+
+def myPrint(data):
+    for line in data:
+        print(line)
 
 def get_credentials():
     """Gets valid user credentials from storage.
@@ -79,14 +102,9 @@ def countTutors(service):
     # read tutor info
     tutors, tutorsMap = readData()
 
-    # this is the calendar id with the time range of the week
-    calId = 'eng.ucsd.edu_cprroni4e75jsicjt9bv26nm74@group.calendar.google.com'
-    timeFrom = '2018-03-04T10:00:00-07:00'
-    timeTo = '2018-03-10T23:59:59-07:00'
-
     # get all of the events in this week
-    events = service.events().list(calendarId=calId, timeMin=timeFrom,
-        timeMax=timeTo, singleEvents=True, orderBy='startTime').execute()
+    events = service.events().list(calendarId=CAL_ID, timeMin=TIME_FROM,
+        timeMax=TIME_TO, singleEvents=True, orderBy='startTime').execute()
     
     # iterate through all of the events in this week
     for event in events['items']:
@@ -96,12 +114,20 @@ def countTutors(service):
             eventToDelete.append(event['id'])
 
         # get only those with title: Tutor hour with no TBD
-        if event['status'] != 'cancelled' and 'Tutor Hour' in event['summary'] and 'TBD' not in event['summary']:
+        if event['status'] != 'cancelled' and (('Tutor Hour' in event['summary'] and 'TBD' not in event['summary'])
+            or 'group tutor' in event['summary'].lower()):
 
             # parse the list of tutors in this event
             summary = event['summary']
             summary = summary[summary.find("(")+1:len(summary)-1]
             listOfTutors = [t.strip() for t in re.split(',|，', summary)]
+            startTime = str(event['start']['dateTime'])[5:-6]
+            endTime = str(event['end']['dateTime'])[11:-6]
+            currDate = startTime[:5]
+            startTime = startTime[6:]
+            print("Date: " + currDate)
+            print("start: " +startTime)
+            print("end: " +endTime)
 
             for tutor in listOfTutors:
                 if tutor not in tutorsMap:
@@ -109,6 +135,8 @@ def countTutors(service):
                 else:
                     name = tutorsMap[tutor]
                     tutors[name] += 1
+
+                    masterReport[name].append((currDate, startTime, endTime))
 
     # print tutor hours count
     for tutor, count in tutors.items():
@@ -120,20 +148,15 @@ def countTutors(service):
 
     # delete TBD events
     for eventId in eventToDelete:
-        service.events().delete(calendarId=calId, eventId=eventId).execute()
+        service.events().delete(calendarId=CAL_ID, eventId=eventId).execute()
 
 def updateTitle(service):
     '''This function will update the title into correct format:'''
     '''Tutor Hours (Names)'''
-    
-    # this is the calendar id with the time range of the week
-    calId = 'eng.ucsd.edu_cprroni4e75jsicjt9bv26nm74@group.calendar.google.com'
-    timeFrom = '2018-03-04T10:00:00-07:00'
-    timeTo = '2018-03-10T23:59:59-07:00'
 
     # get all of the events in this week
-    events = service.events().list(calendarId=calId, timeMin=timeFrom,
-        timeMax=timeTo, singleEvents=True, orderBy='startTime').execute()        
+    events = service.events().list(calendarId=CAL_ID, timeMin=TIME_FROM,
+        timeMax=TIME_TO, singleEvents=True, orderBy='startTime').execute()        
 
     # iterate through all of the events in this week
     for i, event in enumerate(events['items']):
@@ -145,8 +168,43 @@ def updateTitle(service):
             openIndex = event['summary'].find('(')
             closeIndex = event['summary'].find(')')
             event['summary'] = 'Tutor Hour (' + event['summary'][openIndex+1:closeIndex] + ')'
-            updated_event = service.events().update(calendarId=calId, eventId=event['id'], body=event).execute()
+            updated_event = service.events().update(calendarId=CAL_ID, eventId=event['id'], body=event).execute()
 
+def readMasterReport():
+    global masterReport
+    if os.path.isfile("masterReport.txt") :
+        with open("masterReport.txt", "rb") as myFile:
+            masterReport = pickle.load(myFile)
+
+def writeMasterReport():
+    global masterReport
+    for k, v in sorted(masterReport.items()):
+        print(k)
+        for t in v:
+            print("\t%s\t%s\t%s" % (t[0], t[1], t[2]))
+
+    with open("masterReport.txt", "wb") as myFile:
+        pickle.dump(masterReport, myFile)
+
+def readRequests():
+    global masterTasks
+    if os.path.isfile("requests.txt"):
+        with open ("requests.txt") as myFile:
+            masterTasks = myFile.readlines()
+
+    # list of tuples: (timestamp, email, task, date, times, special)
+    masterTasks = [tuple(s.replace('\n', '').split('\t')) for s in masterTasks]
+
+    myPrint(masterTasks)
+
+def addRequest(myTask):
+
+
+def processRequests():
+    
+    # need an index to jump to the new process
+    for task in masterTasks:
+        if task[2] == 
 
 def main():
     """Shows basic usage of the Google Calendar API.
@@ -158,8 +216,11 @@ def main():
     http = credentials.authorize(httplib2.Http())
     service = discovery.build('calendar', 'v3', http=http)
 
+    readRequests()
+    processRequests()
+
     #updateTitle(service)
-    countTutors(service)
+    #countTutors(service)
 
 if __name__ == '__main__':
     main()

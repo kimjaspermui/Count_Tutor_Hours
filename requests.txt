@@ -1,0 +1,2 @@
+3/24/2018 8:26:40	kmui@ucsd.edu	Add	3/30/2018	12:00pm - 13:00pm, 16:00pm - 17:00pm	Yes
+3/24/2018 8:26:53	kmui@ucsd.edu	Remove	3/28/2018	11:00am - 12:00pm, 12:00pm - 13:00pm	No
