@@ -25,14 +25,16 @@ class TaskInfo(Enum):
     TIME = 4
     SPECIAL = 5
 
+# constants
+MAX_HOURS = 3
+
 # need an index to store from which request to process
 masterReport = defaultdict(list)
 masterTasks = list()
 
 # data
-tutors = list()
-tutorsMap = list()
-names = defaultdict()
+tutorHourCount = defaultdict(int) # {name: count}
+names = defaultdict() # {email: name}
 
 try:
     import argparse
@@ -46,22 +48,37 @@ SCOPES = 'https://www.googleapis.com/auth/calendar'
 CLIENT_SECRET_FILE = 'client_secret.json'
 APPLICATION_NAME = 'Google Calendar'
 
+# calendar details
 CAL_ID = 'eng.ucsd.edu_cprroni4e75jsicjt9bv26nm74@group.calendar.google.com'
-TIME_FROM = '2018-03-01T00:00:00-07:00'
-TIME_TO = '2018-03-17T23:59:59-07:00'
+TIME_FROM = '2018-03-25T00:00:00-07:00'
+TIME_TO = '2018-03-31T23:59:59-07:00'
+
+# constant strings
+ADD_DECLINE = 'Decline to add hour to calendar'
+# Weeks
+WEEK1FROM = '2018-03-25T00:00:00-07:00'
+WEEK1TO = '2018-03-31T23:59:59-07:00'
 
 def myPrint(data):
     for line in data:
         print(line)
 
-def convertToDatetime(date, time):
+def printError(message, name, time):
+    print(message + ": " + name + " (" + str(time) + ")")
 
+def convertToDatetime(date, time):
+    '''Function to convert the date and time into datetime'''
+    '''date: month/day/year, time: hr:min:sec'''
+    
+    # parse out the date and time
     month, day, year = [int(s) for s in date.split('/')]
     startTime = time.split('-')[0]
     hour, minute, second = [int(s) for s in startTime.split(':')]
 
+    # create datetime object
     myDatetime = datetime.datetime(year, month, day, hour, minute, second)
-    print("datetime: " + str(myDatetime))
+
+    return myDatetime
 
 def get_credentials():
     """Gets valid user credentials from storage.
@@ -96,32 +113,16 @@ def parseData(fname):
         yield eval(l)
 
 def readData():
+    '''function to read in names for processing'''
 
+    # global structures
     global names
 
-    # TODO: Don't need these
-    # this will read all tutors and initialize its count
-    print("Reading tutors...")
-    tutors = {t: 0 for t in list(parseData("tutors 8B"))}
-    print("done")
-    
-    # this will read all tutors' names in google calendar mapping to their name
-    print("Reading tutors map...")
-    tutorsMap = list(parseData("tutors map 8B.json"))[0]
-    print("done")
-
+    print("Reading tutor names...")
     names = json.load(open('names.json'))
-
-    return tutors, tutorsMap
+    print("done")
 
 def countTutors(service):
-
-    # boolean to see if we need to delete TBD
-    delete = True
-    eventToDelete = []
-
-    # read tutor info
-    tutors, tutorsMap = readData()
 
     # get all of the events in this week
     events = service.events().list(calendarId=CAL_ID, timeMin=TIME_FROM,
@@ -130,46 +131,27 @@ def countTutors(service):
     # iterate through all of the events in this week
     for event in events['items']:
 
-        # code to delete the tutor hours with TBD
-        if delete and 'Tutor Hour' in event['summary'] and 'TBD' in event['summary']:
-            eventToDelete.append(event['id'])
-
         # get only those with title: Tutor hour with no TBD
-        if event['status'] != 'cancelled' and (('Tutor Hour' in event['summary'] and 'TBD' not in event['summary'])
-            or 'group tutor' in event['summary'].lower()):
+        if event['status'] != 'cancelled' and 'Tutor Hour' in event['summary']:
 
             # parse the list of tutors in this event
             summary = event['summary']
             summary = summary[summary.find("(")+1:len(summary)-1]
-            listOfTutors = [t.strip() for t in re.split(',|，', summary)]
+            listOfTutors = [t.strip() for t in re.split(',', summary)]
             startTime = str(event['start']['dateTime'])[5:-6]
             endTime = str(event['end']['dateTime'])[11:-6]
             currDate = startTime[:5]
             startTime = startTime[6:]
-            print("Date: " + currDate)
-            print("start: " +startTime)
-            print("end: " +endTime)
 
+            # increment count for this tutor
             for tutor in listOfTutors:
-                if tutor not in tutorsMap:
-                    print("This tutor doesn't exist in map: %s" % (tutor))
-                else:
-                    name = tutorsMap[tutor]
-                    tutors[name] += 1
-
-                    masterReport[name].append((currDate, startTime, endTime))
+                tutorHourCount[tutor] += 1
 
     # print tutor hours count
-    for tutor, count in tutors.items():
-        print("%d" % (count))
+    for tutor, count in tutorHourCount.items():
+        print("%s\t%d" % (tutor, count))
 
-    # print tutor names in excel order
-    for tutor, count in tutors.items():
-        print("%s" % (tutor))
-
-    # delete TBD events
-    for eventId in eventToDelete:
-        service.events().delete(calendarId=CAL_ID, eventId=eventId).execute()
+    # probably save to file instead of printing it
 
 def updateTitle(service):
     '''This function will update the title into correct format:'''
@@ -215,12 +197,14 @@ def addRequest(myTask):
     myName = names[myTask[TaskInfo.EMAIL.value]]
 
     # get the datetime format of the current and future time
-    #timestamp = 
+    myTimestamp = myTask[TaskInfo.TIMESTAMP.value].split()
+    timestamp = convertToDatetime(myTimestamp[0], myTimestamp[1])
     futureTime = convertToDatetime(myTask[TaskInfo.DATE.value], myTask[TaskInfo.TIME.value])
 
-
-
-
+    # 1st condition: a future time and at least 24 hours
+    deltaDay = (futureTime - timestamp).days
+    if deltaDay < 1:
+        printError(ADD_DECLINE, myName, futureTime)
 
 def removeRequest(myTask):
     '''function to remove hour to calendar if it passes the condition'''
@@ -264,7 +248,7 @@ def main():
     processRequests()
 
     #updateTitle(service)
-    #countTutors(service)
+    countTutors(service)
 
 if __name__ == '__main__':
     main()
