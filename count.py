@@ -27,15 +27,17 @@ class TaskInfo(Enum):
 
 # constants
 MAX_HOURS = 3
+MAX_TUTORS = 5
 
 # need an index to store from which request to process
 masterReport = defaultdict(list)
 masterTasks = list()
 
 # data
-tutorHourCount = defaultdict(int) # {name: count}
 names = defaultdict() # {email: name}
-restrictedHours = defaultdict(list)
+tutorHours = defaultdict(list) # {name: list of datetime ("month-day time")}
+restrictedHours = defaultdict(list) # {date: list of times}
+hourCount = defaultdict(int) # {datetime: count}
 
 try:
     import argparse
@@ -129,6 +131,9 @@ def readData():
 
 def countTutors(service):
 
+    global tutorHours
+    global hourCount
+
     # get all of the events in this week
     events = service.events().list(calendarId=CAL_ID, timeMin=TIME_FROM,
         timeMax=TIME_TO, singleEvents=True, orderBy='startTime').execute()
@@ -148,13 +153,18 @@ def countTutors(service):
             currDate = startTime[:5]
             startTime = startTime[6:]
 
+            print(str(event['start']['dateTime']))
+            print(startTime)
+            print(endTime)
+
             # increment count for this tutor
             for tutor in listOfTutors:
-                tutorHourCount[tutor] += 1
+                tutorHours[tutor].append(currDate + " " + startTime)
+                hourCount[currDate + " " + startTime] += 1
 
     # print tutor hours count
-    for tutor, count in tutorHourCount.items():
-        print("%s\t%d" % (tutor, count))
+    for tutor, listOfHours in tutorHours.items():
+        print("%s\t%s" % (tutor, listOfHours))
 
     # probably save to file instead of printing it
 
@@ -206,15 +216,24 @@ def addRequest(myTask):
     myTimestamp = myTask[TaskInfo.TIMESTAMP.value].split()
     timestamp = convertToDatetime(myTimestamp[0], myTimestamp[1])
     futureTime = convertToDatetime(myDate, myTime)
+    deltaDay = (futureTime - timestamp).days
 
     # 1st condition: a future time and at least 24 hours
     # 2nd condition: less than maximum hour
     # 3rd condition: not a restricted hour
-
-    deltaDay = (futureTime - timestamp).days
-    if deltaDay < 1 or tutorHourCount[myName] < MAX_HOURS or
-    (myDate in restrictedHours and myTime in restrictedHours[myDate]):
-        printError(ADD_DECLINE, myName, futureTime)
+    # 4th condition: not repeated
+    # 5th condition: current time slot has less than max tutors
+    if deltaDay < 1:
+        printError("less than 24 hours-" + ADD_DECLINE, myName, futureTime)
+    elif len(tutorHours[myName]) >= MAX_HOURS:
+        printError("has max hours-" + ADD_DECLINE, myName, futureTime)
+    elif (myDate in restrictedHours and myTime in restrictedHours[myDate]):
+        printError("restricted hours-" + ADD_DECLINE, myName, futureTime)
+    elif str(futureTime)[5:] in tutorHours[myName]:
+        printError("already have hour-" + ADD_DECLINE, myName, futureTime)
+    elif hourCount[str(futureTime)[5:]] >= MAX_TUTORS:
+        printError("has max tutors-" + ADD_DECLINE, myName, futureTime)
+        
 
 def removeRequest(myTask):
     '''function to remove hour to calendar if it passes the condition'''
