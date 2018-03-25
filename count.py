@@ -35,6 +35,7 @@ masterTasks = list()
 # data
 tutorHourCount = defaultdict(int) # {name: count}
 names = defaultdict() # {email: name}
+restrictedHours = defaultdict(list)
 
 try:
     import argparse
@@ -72,8 +73,7 @@ def convertToDatetime(date, time):
     
     # parse out the date and time
     month, day, year = [int(s) for s in date.split('/')]
-    startTime = time.split('-')[0]
-    hour, minute, second = [int(s) for s in startTime.split(':')]
+    hour, minute, second = [int(s) for s in time.split(':')]
 
     # create datetime object
     myDatetime = datetime.datetime(year, month, day, hour, minute, second)
@@ -117,9 +117,14 @@ def readData():
 
     # global structures
     global names
+    global restrictedHours
 
     print("Reading tutor names...")
     names = json.load(open('names.json'))
+    print("done")
+
+    print("Reading restricted hours...")
+    restrictedHours = json.load(open('restricted_hours.json'))
     print("done")
 
 def countTutors(service):
@@ -193,17 +198,22 @@ def writeMasterReport():
 
 def addRequest(myTask):
     '''function to add hour to calendar if it passes the condition'''
-    print(myTask[TaskInfo.EMAIL.value])
     myName = names[myTask[TaskInfo.EMAIL.value]]
+    myDate = myTask[TaskInfo.DATE.value]
+    myTime = myTask[TaskInfo.TIME.value].split('-')[0]
 
     # get the datetime format of the current and future time
     myTimestamp = myTask[TaskInfo.TIMESTAMP.value].split()
     timestamp = convertToDatetime(myTimestamp[0], myTimestamp[1])
-    futureTime = convertToDatetime(myTask[TaskInfo.DATE.value], myTask[TaskInfo.TIME.value])
+    futureTime = convertToDatetime(myDate, myTime)
 
     # 1st condition: a future time and at least 24 hours
+    # 2nd condition: less than maximum hour
+    # 3rd condition: not a restricted hour
+
     deltaDay = (futureTime - timestamp).days
-    if deltaDay < 1:
+    if deltaDay < 1 or tutorHourCount[myName] < MAX_HOURS or
+    (myDate in restrictedHours and myTime in restrictedHours[myDate]):
         printError(ADD_DECLINE, myName, futureTime)
 
 def removeRequest(myTask):
@@ -243,12 +253,14 @@ def main():
     # read names to be input to calendar
     readData()
 
+    # populate the tutor hours count for each tutors
+    countTutors(service)
+
     # read requests and process them
     readRequests()
     processRequests()
 
     #updateTitle(service)
-    countTutors(service)
 
 if __name__ == '__main__':
     main()
