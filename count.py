@@ -23,7 +23,6 @@ class TaskInfo(Enum):
     TASK = 2
     DATE = 3
     TIME = 4
-    SPECIAL = 5
 
 # constants
 MAX_HOURS = 3
@@ -52,7 +51,8 @@ CLIENT_SECRET_FILE = 'client_secret.json'
 APPLICATION_NAME = 'Google Calendar'
 
 # calendar details
-CAL_ID = 'eng.ucsd.edu_cprroni4e75jsicjt9bv26nm74@group.calendar.google.com'
+# 8A Spring 2018 Calendar ID
+CAL_ID = 'eng.ucsd.edu_9tdstr4ijgre5bnu5grsh3kf6g@group.calendar.google.com'
 TIME_FROM = '2018-03-25T00:00:00-07:00'
 TIME_TO = '2018-03-31T23:59:59-07:00'
 
@@ -162,6 +162,8 @@ def countTutors(service):
                 tutorHours[tutor].append(currDate + " " + startTime)
                 hourCount[currDate + " " + startTime] += 1
 
+            print(event)
+
     # print tutor hours count
     for tutor, listOfHours in tutorHours.items():
         print("%s\t%s" % (tutor, listOfHours))
@@ -206,17 +208,19 @@ def writeMasterReport():
     with open("masterReport.txt", "wb") as myFile:
         pickle.dump(masterReport, myFile)
 
-def addRequest(myTask):
+def addRequest(myTask, service):
     '''function to add hour to calendar if it passes the condition'''
     myName = names[myTask[TaskInfo.EMAIL.value]]
     myDate = myTask[TaskInfo.DATE.value]
-    myTime = myTask[TaskInfo.TIME.value].split('-')[0]
+    myTime = myTask[TaskInfo.TIME.value].split('-')
+    # time need to be splited in different time slot before add request
 
     # get the datetime format of the current and future time
     myTimestamp = myTask[TaskInfo.TIMESTAMP.value].split()
     timestamp = convertToDatetime(myTimestamp[0], myTimestamp[1])
-    futureTime = convertToDatetime(myDate, myTime)
-    deltaDay = (futureTime - timestamp).days
+    startTime = convertToDatetime(myDate, myTime[0])
+    endTime = convertToDatetime(myDate, myTime[1])
+    deltaDay = (startTime - timestamp).days
 
     # 1st condition: a future time and at least 24 hours
     # 2nd condition: less than maximum hour
@@ -224,18 +228,29 @@ def addRequest(myTask):
     # 4th condition: not repeated
     # 5th condition: current time slot has less than max tutors
     if deltaDay < 1:
-        printError("less than 24 hours-" + ADD_DECLINE, myName, futureTime)
+        printError("less than 24 hours-" + ADD_DECLINE, myName, startTime)
     elif len(tutorHours[myName]) >= MAX_HOURS:
-        printError("has max hours-" + ADD_DECLINE, myName, futureTime)
+        printError("has max hours-" + ADD_DECLINE, myName, startTime)
     elif (myDate in restrictedHours and myTime in restrictedHours[myDate]):
-        printError("restricted hours-" + ADD_DECLINE, myName, futureTime)
-    elif str(futureTime)[5:] in tutorHours[myName]:
-        printError("already have hour-" + ADD_DECLINE, myName, futureTime)
-    elif hourCount[str(futureTime)[5:]] >= MAX_TUTORS:
-        printError("has max tutors-" + ADD_DECLINE, myName, futureTime)
-        
+        printError("restricted hours-" + ADD_DECLINE, myName, startTime)
+    elif str(startTime)[5:] in tutorHours[myName]:
+        printError("already have hour-" + ADD_DECLINE, myName, startTime)
+    elif hourCount[str(startTime)[5:]] >= MAX_TUTORS:
+        printError("has max tutors-" + ADD_DECLINE, myName, startTime)
 
-def removeRequest(myTask):
+    listOfNames = myName
+
+    # passed the conditions, add the event
+    # create a function for this
+    event = {'summary': 'Tutor Hour (%s)' % (listOfNames),
+    'start': {'dateTime': '%sT%s-07:00' % (startTime.date(), startTime.time())},
+    'end': {'dateTime': '%sT%s-07:00' % (endTime.date(), endTime.time())}
+    }
+    
+    event = service.events().insert(calendarId=CAL_ID, body=event).execute()
+    print("created an event")
+
+def removeRequest(myTask, service):
     '''function to remove hour to calendar if it passes the condition'''
 
 def readRequests():
@@ -250,14 +265,14 @@ def readRequests():
 
     myPrint(masterTasks)
 
-def processRequests():
+def processRequests(service):
     '''function to distribute task processing in the tasks read in'''
     # need an index to jump to the new process
     for task in masterTasks:
         if task[2] == 'Add':
-            addRequest(task)
+            addRequest(task, service)
         elif task[2] == 'Remove':
-            addRequest(task)
+            removeRequest(task, service)
 
 def main():
     """Shows basic usage of the Google Calendar API.
@@ -277,7 +292,7 @@ def main():
 
     # read requests and process them
     readRequests()
-    processRequests()
+    processRequests(service)
 
     #updateTitle(service)
 
