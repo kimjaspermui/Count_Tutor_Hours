@@ -212,43 +212,54 @@ def addRequest(myTask, service):
     '''function to add hour to calendar if it passes the condition'''
     myName = names[myTask[TaskInfo.EMAIL.value]]
     myDate = myTask[TaskInfo.DATE.value]
-    myTime = myTask[TaskInfo.TIME.value].split('-')
-    # time need to be splited in different time slot before add request
+    allTime = myTask[TaskInfo.TIME.value].split(', ')
 
-    # get the datetime format of the current and future time
-    myTimestamp = myTask[TaskInfo.TIMESTAMP.value].split()
-    timestamp = convertToDatetime(myTimestamp[0], myTimestamp[1])
-    startTime = convertToDatetime(myDate, myTime[0])
-    endTime = convertToDatetime(myDate, myTime[1])
-    deltaDay = (startTime - timestamp).days
+    print(allTime)
 
-    # 1st condition: a future time and at least 24 hours
-    # 2nd condition: less than maximum hour
-    # 3rd condition: not a restricted hour
-    # 4th condition: not repeated
-    # 5th condition: current time slot has less than max tutors
-    if deltaDay < 1:
-        printError("less than 24 hours-" + ADD_DECLINE, myName, startTime)
-    elif len(tutorHours[myName]) >= MAX_HOURS:
-        printError("has max hours-" + ADD_DECLINE, myName, startTime)
-    elif (myDate in restrictedHours and myTime in restrictedHours[myDate]):
-        printError("restricted hours-" + ADD_DECLINE, myName, startTime)
-    elif str(startTime)[5:] in tutorHours[myName]:
-        printError("already have hour-" + ADD_DECLINE, myName, startTime)
-    elif hourCount[str(startTime)[5:]] >= MAX_TUTORS:
-        printError("has max tutors-" + ADD_DECLINE, myName, startTime)
+    for time in allTime:
 
-    listOfNames = myName
+        # split start and end time
+        myTime = time.split('-')
 
-    # passed the conditions, add the event
-    # create a function for this
-    event = {'summary': 'Tutor Hour (%s)' % (listOfNames),
-    'start': {'dateTime': '%sT%s-07:00' % (startTime.date(), startTime.time())},
-    'end': {'dateTime': '%sT%s-07:00' % (endTime.date(), endTime.time())}
-    }
-    
-    event = service.events().insert(calendarId=CAL_ID, body=event).execute()
-    print("created an event")
+        # get the datetime format of the current and future time
+        myTimestamp = myTask[TaskInfo.TIMESTAMP.value].split()
+        timestamp = convertToDatetime(myTimestamp[0], myTimestamp[1])
+        startTime = convertToDatetime(myDate, myTime[0])
+        endTime = convertToDatetime(myDate, myTime[1])
+        deltaDay = (startTime - timestamp).days
+
+        # 1st condition: a future time and at least 24 hours
+        # 2nd condition: less than maximum hour
+        # 3rd condition: not a restricted hour
+        # 4th condition: not repeated
+        # 5th condition: current time slot has less than max tutors
+        if deltaDay < 1:
+            printError("less than 24 hours-" + ADD_DECLINE, myName, startTime)
+            return
+        elif len(tutorHours[myName]) >= MAX_HOURS:
+            printError("has max hours-" + ADD_DECLINE, myName, startTime)
+            return
+        elif (myDate in restrictedHours and myTime in restrictedHours[myDate]):
+            printError("restricted hours-" + ADD_DECLINE, myName, startTime)
+            return
+        elif str(startTime)[5:] in tutorHours[myName]:
+            printError("already have hour-" + ADD_DECLINE, myName, startTime)
+            return
+        elif hourCount[str(startTime)[5:]] >= MAX_TUTORS:
+            printError("has max tutors-" + ADD_DECLINE, myName, startTime)
+            return
+
+        # TODO: get the names from the calendar if it exists
+        listOfNames = myName
+
+        # passed the conditions, add the event
+        event = {'summary': 'Tutor Hour (%s)' % (listOfNames),
+        'start': {'dateTime': '%sT%s-07:00' % (startTime.date(), startTime.time())},
+        'end': {'dateTime': '%sT%s-07:00' % (endTime.date(), endTime.time())}
+        }
+        
+        event = service.events().insert(calendarId=CAL_ID, body=event).execute()
+        print("created an event")
 
 def removeRequest(myTask, service):
     '''function to remove hour to calendar if it passes the condition'''
