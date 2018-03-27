@@ -23,6 +23,7 @@ class TaskInfo(Enum):
     TASK = 2
     DATE = 3
     TIME = 4
+    RECUR = 5
 
 # constants
 MAX_HOURS = 3
@@ -82,6 +83,19 @@ def convertToDatetime(date, time):
     myDatetime = datetime.datetime(year, month, day, hour, minute, second)
 
     return myDatetime
+
+def convertTo24(time):
+    '''Function to convert the am/pm time to 24 system time'''
+    colonIndex = time.find(':')
+    myHour = int(time[:colonIndex])
+    if myHour == 12 and "pm" in time:
+        return "12:00:00"
+    elif "am" in  time:
+        return str(myHour) + ":00:00"
+    elif "pm" in time:
+        return str(myHour+12) + ":00:00"
+    else:
+        print("Erorr in converting to 24 hour system!")
 
 def get_credentials():
     """Gets valid user credentials from storage.
@@ -235,12 +249,16 @@ def addRequest(myTask, service):
         # split start and end time
         myTime = time.split('-')
 
+        # convert the time to 24 hr system
+        myTime[0] = convertTo24(myTime[0])
+        myTime[1] = convertTo24(myTime[1])
+
         # get the datetime format of the current and future time
         myTimestamp = myTask[TaskInfo.TIMESTAMP.value].split()
         timestamp = convertToDatetime(myTimestamp[0], myTimestamp[1])
         startTime = convertToDatetime(myDate, myTime[0])
         endTime = convertToDatetime(myDate, myTime[1])
-        deltaDay = (startTime - timestamp).days
+        deltaDay = (startTime - timestamp).seconds
 
         # 1st condition: a future time and at least 24 hours NOTE: not doing 24 hrs check
         # 2nd condition: less than maximum hour
@@ -296,13 +314,23 @@ def removeRequest(myTask, service):
 
     for time in allTime:
 
-        #TODO: check if it is future time
-
         # split start and end time
         myTime = time.split('-')
 
+        # convert the time to 24 hr system
+        myTime[0] = convertTo24(myTime[0])
+        myTime[1] = convertTo24(myTime[1])
+
         # get the datetime format of the current and future time
+        myTimestamp = myTask[TaskInfo.TIMESTAMP.value].split()
+        timestamp = convertToDatetime(myTimestamp[0], myTimestamp[1])
         startTime = convertToDatetime(myDate, myTime[0])
+
+        # check if it is a future time
+        deltaDay = (startTime - timestamp).seconds
+        if deltaDay < 0:
+            printError("Less than 24 hours-" + REMOVE_DECLINE, myName, startTime)
+            return
 
         # get the event with this start time
         myEvent = getEvent(startTime, service)
