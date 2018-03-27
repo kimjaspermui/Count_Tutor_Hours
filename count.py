@@ -56,6 +56,8 @@ APPLICATION_NAME = 'Google Calendar'
 CAL_ID = 'eng.ucsd.edu_9tdstr4ijgre5bnu5grsh3kf6g@group.calendar.google.com'
 TIME_FROM = '2018-03-25T00:00:00-07:00'
 TIME_TO = '2018-03-31T23:59:59-07:00'
+LAST_DATE = '6/8/2018'
+LAST_HOUR = '21:00:00'
 
 # constant strings
 ADD_DECLINE = 'Decline to add hour to calendar'
@@ -243,8 +245,13 @@ def addRequest(myTask, service):
     myName = names[myTask[TaskInfo.EMAIL.value]]
     myDate = myTask[TaskInfo.DATE.value]
     allTime = myTask[TaskInfo.TIME.value].split(', ')
+    recurring = True if myTask[TaskInfo.RECUR.value] == "Yes" else False
+    lastHour = convertToDatetime(LAST_DATE, LAST_HOUR)
 
     for time in allTime:
+
+        # TODO: recur until up to the last hour
+        # TODO: do the recurring event here +One week of time, modify myDate
 
         # split start and end time
         myTime = time.split('-')
@@ -258,7 +265,7 @@ def addRequest(myTask, service):
         timestamp = convertToDatetime(myTimestamp[0], myTimestamp[1])
         startTime = convertToDatetime(myDate, myTime[0])
         endTime = convertToDatetime(myDate, myTime[1])
-        deltaDay = (startTime - timestamp).seconds
+        deltaDay = (startTime - timestamp).total_seconds()
 
         # 1st condition: a future time and at least 24 hours NOTE: not doing 24 hrs check
         # 2nd condition: less than maximum hour
@@ -266,7 +273,7 @@ def addRequest(myTask, service):
         # 4th condition: not repeated
         # 5th condition: current time slot has less than max tutors
         if deltaDay < 0:
-            printError("Less than 24 hours-" + ADD_DECLINE, myName, startTime)
+            printError("It is not a future time-" + ADD_DECLINE, myName, startTime)
             return
         elif len(tutorHours[myName]) >= MAX_HOURS:
             printError("Has max hours-" + ADD_DECLINE, myName, startTime)
@@ -327,9 +334,9 @@ def removeRequest(myTask, service):
         startTime = convertToDatetime(myDate, myTime[0])
 
         # check if it is a future time
-        deltaDay = (startTime - timestamp).seconds
+        deltaDay = (startTime - timestamp).total_seconds()
         if deltaDay < 0:
-            printError("Less than 24 hours-" + REMOVE_DECLINE, myName, startTime)
+            printError("It is not a future time-" + REMOVE_DECLINE, myName, startTime)
             return
 
         # get the event with this start time
