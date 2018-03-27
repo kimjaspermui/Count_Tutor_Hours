@@ -58,6 +58,7 @@ TIME_TO = '2018-03-31T23:59:59-07:00'
 
 # constant strings
 ADD_DECLINE = 'Decline to add hour to calendar'
+REMOVE_DECLINE = 'Decline to remove hour to calendar'
 # Weeks
 WEEK1FROM = '2018-03-25T00:00:00-07:00'
 WEEK1TO = '2018-03-31T23:59:59-07:00'
@@ -206,6 +207,7 @@ def writeMasterReport():
 def getEvent(timeslot, service):
     '''function that will return an event with the time slot if exists'''
 
+    # get the events on that day
     startTime = "%sT00:00:00-07:00" % (timeslot.date())
     endTime = "%sT23:59:59-07:00" % (timeslot.date())
 
@@ -240,15 +242,15 @@ def addRequest(myTask, service):
         endTime = convertToDatetime(myDate, myTime[1])
         deltaDay = (startTime - timestamp).days
 
-        # 1st condition: a future time and at least 24 hours
+        # 1st condition: a future time and at least 24 hours NOTE: not doing 24 hrs check
         # 2nd condition: less than maximum hour
         # 3rd condition: not a restricted hour
         # 4th condition: not repeated
         # 5th condition: current time slot has less than max tutors
-        # if deltaDay < 1:
-        #     printError("Less than 24 hours-" + ADD_DECLINE, myName, startTime)
-        #     return
-        if len(tutorHours[myName]) >= MAX_HOURS:
+        if deltaDay < 0:
+            printError("Less than 24 hours-" + ADD_DECLINE, myName, startTime)
+            return
+        elif len(tutorHours[myName]) >= MAX_HOURS:
             printError("Has max hours-" + ADD_DECLINE, myName, startTime)
             return
         elif (myDate in restrictedHours and myTime in restrictedHours[myDate]):
@@ -261,9 +263,8 @@ def addRequest(myTask, service):
             printError("Has max tutors-" + ADD_DECLINE, myName, startTime)
             return
 
-        # TODO: get the names from the calendar if it exists
+        # check if event exists, if not, create one, if yes, update the title
         myEvent = getEvent(startTime, service)
-
         if myEvent is None: 
 
             # passed the conditions, add the event
@@ -289,6 +290,47 @@ def addRequest(myTask, service):
 
 def removeRequest(myTask, service):
     '''function to remove hour to calendar if it passes the condition'''
+    myName = names[myTask[TaskInfo.EMAIL.value]]
+    myDate = myTask[TaskInfo.DATE.value]
+    allTime = myTask[TaskInfo.TIME.value].split(', ')
+
+    for time in allTime:
+
+        #TODO: check if it is future time
+
+        # split start and end time
+        myTime = time.split('-')
+
+        # get the datetime format of the current and future time
+        startTime = convertToDatetime(myDate, myTime[0])
+
+        # get the event with this start time
+        myEvent = getEvent(startTime, service)
+
+        # check if hour exists, if not, no hours to remove
+        if myEvent is None:
+            printError("Hour doesn't exist-", REMOVE_DECLINE, myName, startTime)
+            return
+
+        else:
+            # update the current entry
+            openIndex = myEvent['summary'].find('(')
+            closeIndex = myEvent['summary'].find(')')
+            listOfNames = myEvent['summary'][openIndex+1:closeIndex].split(', ')
+            listOfNames.remove(myName)
+            print(listOfNames)
+
+            # case for no tutors in this slot
+            if len(listOfNames) == 0:
+                service.events().delete(calendarId=CAL_ID, eventId=myEvent['id']).execute()
+
+            # case for removing this one tutor from this slot by updating the title
+            else:
+                strNames = listOfNames[0]
+                for i in range(1, len(listOfNames)):
+                    strNames += ", " + listOfNames[i]
+                myEvent['summary'] = 'Tutor Hour (' + strNames + ')'
+                updated_event = service.events().update(calendarId=CAL_ID, eventId=myEvent['id'], body=myEvent).execute()
 
 def readRequests():
     ''' function to read in the requests from google forms'''
