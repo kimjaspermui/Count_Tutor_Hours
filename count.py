@@ -153,18 +153,13 @@ def countTutors(service):
             currDate = startTime[:5]
             startTime = startTime[6:]
 
-            print(str(event['start']['dateTime']))
-            print(startTime)
-            print(endTime)
-
             # increment count for this tutor
             for tutor in listOfTutors:
                 tutorHours[tutor].append(currDate + " " + startTime)
                 hourCount[currDate + " " + startTime] += 1
 
-            print(event)
-
     # print tutor hours count
+    # TODO: need to fix this
     for tutor, listOfHours in tutorHours.items():
         print("%s\t%s" % (tutor, listOfHours))
 
@@ -208,13 +203,30 @@ def writeMasterReport():
     with open("masterReport.txt", "wb") as myFile:
         pickle.dump(masterReport, myFile)
 
+def getEvent(timeslot, service):
+    '''function that will return an event with the time slot if exists'''
+
+    startTime = "%sT00:00:00-07:00" % (timeslot.date())
+    endTime = "%sT23:59:59-07:00" % (timeslot.date())
+
+    # get all of the events in this time frame
+    events = service.events().list(calendarId=CAL_ID, timeMin=startTime,
+        timeMax=endTime, singleEvents=True, orderBy='startTime').execute()
+
+    for event in events['items']:
+
+        # get only those with title: Tutor hour with no TBD
+        if event['status'] != 'cancelled' and 'Tutor Hour' in event['summary']:
+            currTime = str(event['start']['dateTime'])[11:-6]
+            if str(timeslot.time()) == currTime:
+                # get the list of names
+                return event
+
 def addRequest(myTask, service):
     '''function to add hour to calendar if it passes the condition'''
     myName = names[myTask[TaskInfo.EMAIL.value]]
     myDate = myTask[TaskInfo.DATE.value]
     allTime = myTask[TaskInfo.TIME.value].split(', ')
-
-    print(allTime)
 
     for time in allTime:
 
@@ -233,33 +245,47 @@ def addRequest(myTask, service):
         # 3rd condition: not a restricted hour
         # 4th condition: not repeated
         # 5th condition: current time slot has less than max tutors
-        if deltaDay < 1:
-            printError("less than 24 hours-" + ADD_DECLINE, myName, startTime)
-            return
-        elif len(tutorHours[myName]) >= MAX_HOURS:
-            printError("has max hours-" + ADD_DECLINE, myName, startTime)
+        # if deltaDay < 1:
+        #     printError("Less than 24 hours-" + ADD_DECLINE, myName, startTime)
+        #     return
+        if len(tutorHours[myName]) >= MAX_HOURS:
+            printError("Has max hours-" + ADD_DECLINE, myName, startTime)
             return
         elif (myDate in restrictedHours and myTime in restrictedHours[myDate]):
-            printError("restricted hours-" + ADD_DECLINE, myName, startTime)
+            printError("Restricted hours-" + ADD_DECLINE, myName, startTime)
             return
         elif str(startTime)[5:] in tutorHours[myName]:
-            printError("already have hour-" + ADD_DECLINE, myName, startTime)
+            printError("Already in timeslot-" + ADD_DECLINE, myName, startTime)
             return
         elif hourCount[str(startTime)[5:]] >= MAX_TUTORS:
-            printError("has max tutors-" + ADD_DECLINE, myName, startTime)
+            printError("Has max tutors-" + ADD_DECLINE, myName, startTime)
             return
 
         # TODO: get the names from the calendar if it exists
-        listOfNames = myName
+        myEvent = getEvent(startTime, service)
 
-        # passed the conditions, add the event
-        event = {'summary': 'Tutor Hour (%s)' % (listOfNames),
-        'start': {'dateTime': '%sT%s-07:00' % (startTime.date(), startTime.time())},
-        'end': {'dateTime': '%sT%s-07:00' % (endTime.date(), endTime.time())}
-        }
-        
-        event = service.events().insert(calendarId=CAL_ID, body=event).execute()
-        print("created an event")
+        if myEvent is None: 
+
+            # passed the conditions, add the event
+            event = {'summary': 'Tutor Hour (%s) TESTING' % (myName),
+            'start': {'dateTime': '%sT%s-07:00' % (startTime.date(), startTime.time())},
+            'end': {'dateTime': '%sT%s-07:00' % (endTime.date(), endTime.time())}
+            }
+            
+            event = service.events().insert(calendarId=CAL_ID, body=event).execute()
+            print("created an event")
+
+        else:
+
+            # update the current entry
+            openIndex = myEvent['summary'].find('(')
+            closeIndex = myEvent['summary'].find(')')
+            myEvent['summary'] = 'Tutor Hour (' + myEvent['summary'][openIndex+1:closeIndex] + ", " + myName + ')'
+            updated_event = service.events().update(calendarId=CAL_ID, eventId=myEvent['id'], body=myEvent).execute()
+            print("updated an event")
+
+        # update the recorded hours for this tutor
+        tutorHours[myName].append(str(startTime.date())[5:] + " " + str(startTime.time()))
 
 def removeRequest(myTask, service):
     '''function to remove hour to calendar if it passes the condition'''
@@ -274,7 +300,7 @@ def readRequests():
     # list of tuples: (timestamp, email, task, date, times, special)
     masterTasks = [tuple(s.replace('\n', '').split('\t')) for s in masterTasks]
 
-    myPrint(masterTasks)
+    #myPrint(masterTasks)
 
 def processRequests(service):
     '''function to distribute task processing in the tasks read in'''
