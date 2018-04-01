@@ -27,7 +27,7 @@ class TaskInfo(Enum):
 
 # constants
 MAX_HOURS = 3
-MAX_TUTORS = 5
+MAX_TUTORS = 4
 
 # need an index to store from which request to process
 masterReport = defaultdict(list)
@@ -53,11 +53,10 @@ APPLICATION_NAME = 'Google Calendar'
 
 # calendar details
 # 8A Spring 2018 Calendar ID
-CAL_ID = 'eng.ucsd.edu_9tdstr4ijgre5bnu5grsh3kf6g@group.calendar.google.com'
-TIME_FROM = '2018-03-25T00:00:00-07:00'
-TIME_TO = '2018-03-31T23:59:59-07:00'
+CAL_ID = 'eng.ucsd.edu_cprroni4e75jsicjt9bv26nm74@group.calendar.google.com'
+TIME_FROM = '2018-04-02T00:00:00-07:00'
+TIME_TO = '2018-06-08T23:59:59-07:00'
 LAST_DATE = '6/8/2018'
-#LAST_DATE = '4/14/2018'
 LAST_HOUR = '21:00:00'
 
 # constant strings
@@ -140,11 +139,11 @@ def readData():
     global restrictedHours
 
     print("Reading tutor names...")
-    names = json.load(open('names.json'))
+    names = json.load(open('8B_Names.json'))
     print("done")
 
     print("Reading restricted hours...")
-    restrictedHours = json.load(open('restricted_hours.json'))
+    restrictedHours = json.load(open('8B_restricted_hours.json'))
     print("done")
 
 def countTutors(service):
@@ -182,26 +181,6 @@ def countTutors(service):
         print("%s\t%s" % (tutor, listOfHours))
 
     # probably save to file instead of printing it
-
-def updateTitle(service):
-    '''This function will update the title into correct format:'''
-    '''Tutor Hours (Names)'''
-
-    # get all of the events in this week
-    events = service.events().list(calendarId=CAL_ID, timeMin=TIME_FROM,
-        timeMax=TIME_TO, singleEvents=True, orderBy='startTime').execute()        
-
-    # iterate through all of the events in this week
-    for i, event in enumerate(events['items']):
-
-        # get only those with title: Tutor hour with no TBD
-        if event['status'] != 'cancelled' and 'tutor hour' in event['summary'].lower():
-
-            # reformat the title
-            openIndex = event['summary'].find('(')
-            closeIndex = event['summary'].find(')')
-            event['summary'] = 'Tutor Hour (' + event['summary'][openIndex+1:closeIndex] + ')'
-            updated_event = service.events().update(calendarId=CAL_ID, eventId=event['id'], body=event).execute()
 
 def readMasterReport():
     '''function to readin master report map from file'''
@@ -246,7 +225,7 @@ def addRequest(myTask, service):
     myName = names[myTask[TaskInfo.EMAIL.value]]
     myDate = myTask[TaskInfo.DATE.value]
     allTime = myTask[TaskInfo.TIME.value].split(', ')
-    recurring = True if myTask[TaskInfo.RECUR.value] == "Yes" else False
+    repeatNum = int(myTask[TaskInfo.RECUR.value])
     lastHour = convertToDatetime(LAST_DATE, LAST_HOUR)
 
     for time in allTime:
@@ -265,7 +244,8 @@ def addRequest(myTask, service):
       endTime = convertToDatetime(myDate, myTime[1])
       deltaDay = (startTime - timestamp).total_seconds()
 
-      while (lastHour - startTime).total_seconds() >= 0:
+      repeatIndex = 0
+      while (lastHour - startTime).total_seconds() >= 0 and repeatIndex < repeatNum:
 
         # 1st condition: a future time and at least 24 hours NOTE: not doing 24 hrs check
         # 2nd condition: less than maximum hour
@@ -314,19 +294,17 @@ def addRequest(myTask, service):
         # update the recorded hours for this tutor
         tutorHours[myName].append(str(startTime.date())[5:] + " " + str(startTime.time()))
 
-        if not recurring:
-          break
-
         # increment the time by a week
         startTime += datetime.timedelta(days = 7)
         endTime += datetime.timedelta(days = 7)
+        repeatIndex += 1
 
 def removeRequest(myTask, service):
     '''function to remove hour to calendar if it passes the condition'''
     myName = names[myTask[TaskInfo.EMAIL.value]]
     myDate = myTask[TaskInfo.DATE.value]
     allTime = myTask[TaskInfo.TIME.value].split(', ')
-    recurring = True if myTask[TaskInfo.RECUR.value] == "Yes" else False
+    repeatNum = int(myTask[TaskInfo.RECUR.value])
     lastHour = convertToDatetime(LAST_DATE, LAST_HOUR)
 
     for time in allTime:
@@ -343,7 +321,8 @@ def removeRequest(myTask, service):
         timestamp = convertToDatetime(myTimestamp[0], myTimestamp[1])
         startTime = convertToDatetime(myDate, myTime[0])
 
-        while (lastHour - startTime).total_seconds() >= 0:
+        repeatIndex = 0
+        while (lastHour - startTime).total_seconds() >= 0 and repeatIndex < repeatNum:
 
           # check if it is a future time
           deltaDay = (startTime - timestamp).total_seconds()
@@ -378,17 +357,15 @@ def removeRequest(myTask, service):
                   myEvent['summary'] = 'Tutor Hour (' + strNames + ')'
                   updated_event = service.events().update(calendarId=CAL_ID, eventId=myEvent['id'], body=myEvent).execute()
 
-          if not recurring:
-            break
-
           # increment the time by a week
           startTime += datetime.timedelta(days = 7)
+          repeatIndex += 1
 
 def readRequests():
     ''' function to read in the requests from google forms'''
     global masterTasks
-    if os.path.isfile("requests.txt"):
-        with open ("requests.txt") as myFile:
+    if os.path.isfile("8B_requests.txt"):
+        with open ("8B_requests.txt") as myFile:
             masterTasks = myFile.readlines()
 
     # list of tuples: (timestamp, email, task, date, times, special)
@@ -424,8 +401,6 @@ def main():
     # read requests and process them
     readRequests()
     processRequests(service)
-
-    #updateTitle(service)
 
 if __name__ == '__main__':
     main()
