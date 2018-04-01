@@ -1,0 +1,6 @@
+3/31/2018 21:34:54	zif008@ucsd.edu	Add	4/5/2018	1:00 pm - 2:00 pm, 2:00 pm - 3:00 pm	2
+3/31/2018 23:34:08	hes018@ucsd.edu	Add	4/4/2018	5:00 pm - 6:00 pm, 6:00 pm - 7:00 pm	2
+4/1/2018 0:02:38	djgao@ucsd.edu	Add	4/2/2018	1:00 pm - 2:00 pm	10
+4/1/2018 0:03:09	djgao@ucsd.edu	Add	4/4/2018	5:00 pm - 6:00 pm	10
+4/1/2018 3:24:26	kmui@ucsd.edu	Add	4/6/2018	1:00 pm - 2:00 pm, 2:00 pm - 3:00 pm	10
+4/1/2018 3:24:49	kmui@ucsd.edu	Add	4/20/2018	3:00 pm - 4:00 pm	8

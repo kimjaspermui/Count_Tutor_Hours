@@ -7,3 +7,11 @@
 3/31/2018 20:13:54	gpc001@ucsd.edu	Add	4/4/2018	9:00 am - 10:00 am	1
 3/31/2018 20:23:07	nmccrack@ucsd.edu	Add	4/5/2018	10:00 am - 11:00 am, 11:00 am - 12:00 pm	1
 3/31/2018 21:12:00	h3yuan@eng.ucsd.edu	Add	4/4/2018	6:00 pm - 7:00 pm	1
+3/31/2018 22:45:42	jir017@ucsd.edu	Add	3/8/2018	1:00 pm - 2:00 pm, 2:00 pm - 3:00 pm	10
+3/31/2018 22:47:47	jir017@ucsd.edu	Remove	3/8/2018	1:00 pm - 2:00 pm, 2:00 pm - 3:00 pm	10
+3/31/2018 22:48:26	jir017@ucsd.edu	Add	4/5/2018	1:00 pm - 2:00 pm, 2:00 pm - 3:00 pm	10
+3/31/2018 22:49:03	jir017@ucsd.edu	Add	4/20/2018	11:00 am - 12:00 pm	8
+4/1/2018 1:21:33	snaren@ucsd.edu	Remove	4/4/2018	4:00 pm - 5:00 pm	2
+4/1/2018 1:22:01	snaren@ucsd.edu	Add	4/4/2018	6:00 pm - 7:00 pm	2
+4/1/2018 1:27:08	siw070@ucsd.edu	Add	4/2/2018	2:00 pm - 3:00 pm, 3:00 pm - 4:00 pm	2
+4/1/2018 1:35:19	hkaylin@ucsd.edu	Add	4/4/2018	2:00 pm - 3:00 pm, 3:00 pm - 4:00 pm	2

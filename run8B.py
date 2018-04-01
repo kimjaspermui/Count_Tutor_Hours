@@ -35,9 +35,14 @@ masterTasks = list()
 
 # data
 names = defaultdict() # {email: name}
-tutorHours = defaultdict(list) # {name: list of datetime ("month-day time")} <- TODO: need to change to list of defaultdict
+tutorHours = defaultdict(lambda:[[] for a in range(10)]) # {name: 0-9 -> list of datetime ("month-day time")}
 restrictedHours = defaultdict(list) # {date: list of times}
 hourCount = defaultdict(int) # {datetime: count}
+
+# text files
+FILE_NAMES = "8B_Names.json"
+FILE_RESTRICT = "8B_restricted_hours.json"
+FILE_REQUEST = "8B_requests.txt"
 
 try:
     import argparse
@@ -62,13 +67,20 @@ LAST_HOUR = '21:00:00'
 # constant strings
 ADD_DECLINE = 'Decline to add hour to calendar'
 REMOVE_DECLINE = 'Decline to remove hour to calendar'
-# Weeks
-WEEK1FROM = '2018-03-25T00:00:00-07:00'
-WEEK1TO = '2018-03-31T23:59:59-07:00'
 
 def myPrint(data):
     for line in data:
         print(line)
+
+def printTutorHours():
+
+	global tutorHours
+	
+	# print tutor hours count
+	for tutor, weeks in tutorHours.items():
+		print("%s:" % tutor)
+		for i in range(1, len(weeks)+1):
+			print("\tWeek %s: %s" % (i, weeks[i-1]))
 
 def printError(message, name, time):
     print(message + ": " + name + " (" + str(time) + ")")
@@ -139,48 +151,62 @@ def readData():
     global restrictedHours
 
     print("Reading tutor names...")
-    names = json.load(open('8B_Names.json'))
+    names = json.load(open(FILE_NAMES))
     print("done")
 
     print("Reading restricted hours...")
-    restrictedHours = json.load(open('8B_restricted_hours.json'))
+    restrictedHours = json.load(open(FILE_RESTRICT))
     print("done")
+
+def getWeek(date):
+	'''Function to calculate the week of the given date in datetime'''
+
+	week = 0
+	start = convertToDatetime("4/1/2018", "6:00:00")
+
+	# keep looping until reach week 10 or the start time is greater than date
+	while week < 10 and (date - start).total_seconds() > 0:
+		week += 1
+		start += datetime.timedelta(days = 7)
+
+	return week
 
 def countTutors(service):
 
-    global tutorHours
-    global hourCount
+  global tutorHours
+  global hourCount
 
-    # get all of the events in this week
-    events = service.events().list(calendarId=CAL_ID, timeMin=TIME_FROM,
-        timeMax=TIME_TO, singleEvents=True, orderBy='startTime').execute()
-    
-    # iterate through all of the events in this week
-    for event in events['items']:
+  # get all of the events in this week
+  events = service.events().list(calendarId=CAL_ID, timeMin=TIME_FROM,
+      timeMax=TIME_TO, singleEvents=True, orderBy='startTime').execute()
+  
+  # iterate through all of the events in this week
+  for event in events['items']:
 
-        # get only those with title: Tutor hour with no TBD
-        if event['status'] != 'cancelled' and 'Tutor Hour' in event['summary']:
+      # get only those with title: Tutor hour with no TBD
+      if event['status'] != 'cancelled' and 'Tutor Hour' in event['summary']:
 
-            # parse the list of tutors in this event
-            summary = event['summary']
-            summary = summary[summary.find("(")+1:len(summary)-1]
-            listOfTutors = [t.strip() for t in re.split(',', summary)]
-            startTime = str(event['start']['dateTime'])[5:-6]
-            endTime = str(event['end']['dateTime'])[11:-6]
-            currDate = startTime[:5]
-            startTime = startTime[6:]
+          # parse the list of tutors in this event
+          summary = event['summary']
+          summary = summary[summary.find("(")+1:len(summary)-1]
+          listOfTutors = [t.strip() for t in re.split(',', summary)]
+          startTime = str(event['start']['dateTime'])[:-6]
+          endTime = str(event['end']['dateTime'])[11:-6]
+          currDate = startTime[:10].split('-')
+          startTime = startTime[11:]
+          myDatetime = convertToDatetime(\
+          	"%s/%s/%s" % (int(currDate[1]), int(currDate[2]), currDate[0]),\
+          	startTime)
+          myWeek = getWeek(myDatetime)
 
-            # increment count for this tutor
-            for tutor in listOfTutors:
-                tutorHours[tutor].append(currDate + " " + startTime)
-                hourCount[currDate + " " + startTime] += 1
+          # increment count for this tutor
+          for tutor in listOfTutors:
+          	tutorHours[tutor][myWeek-1].append(str(myDatetime))
+          	hourCount[str(myDatetime)] += 1
 
-    # print tutor hours count
-    # TODO: need to fix this
-    for tutor, listOfHours in tutorHours.items():
-        print("%s\t%s" % (tutor, listOfHours))
+  printTutorHours()
 
-    # probably save to file instead of printing it
+  # probably save to file instead of printing it
 
 def readMasterReport():
     '''function to readin master report map from file'''
@@ -221,151 +247,160 @@ def getEvent(timeslot, service):
                 return event
 
 def addRequest(myTask, service):
-    '''function to add hour to calendar if it passes the condition'''
-    myName = names[myTask[TaskInfo.EMAIL.value]]
-    myDate = myTask[TaskInfo.DATE.value]
-    allTime = myTask[TaskInfo.TIME.value].split(', ')
-    repeatNum = int(myTask[TaskInfo.RECUR.value])
-    lastHour = convertToDatetime(LAST_DATE, LAST_HOUR)
+  '''function to add hour to calendar if it passes the condition'''
+  myEmail = myTask[TaskInfo.EMAIL.value]
+  if myEmail not in names:
+  	printError("No name found-"+ ADD_DECLINE, myEmail, startTime)
 
-    for time in allTime:
+  myName = names[myEmail]
+  myDate = myTask[TaskInfo.DATE.value]
+  allTime = myTask[TaskInfo.TIME.value].split(', ')
+  repeatNum = int(myTask[TaskInfo.RECUR.value])
+  lastHour = convertToDatetime(LAST_DATE, LAST_HOUR)
 
-      # split start and end time
-      myTime = time.split('-')
+  for time in allTime:
 
-      # convert the time to 24 hr system
-      myTime[0] = convertTo24(myTime[0])
-      myTime[1] = convertTo24(myTime[1])
+    # split start and end time
+    myTime = time.split('-')
 
-      # get the datetime format of the current and future time
-      myTimestamp = myTask[TaskInfo.TIMESTAMP.value].split()
-      timestamp = convertToDatetime(myTimestamp[0], myTimestamp[1])
-      startTime = convertToDatetime(myDate, myTime[0])
-      endTime = convertToDatetime(myDate, myTime[1])
-      deltaDay = (startTime - timestamp).total_seconds()
+    # convert the time to 24 hr system
+    myTime[0] = convertTo24(myTime[0])
+    myTime[1] = convertTo24(myTime[1])
 
-      repeatIndex = 0
-      while (lastHour - startTime).total_seconds() >= 0 and repeatIndex < repeatNum:
+    # get the datetime format of the current and future time
+    myTimestamp = myTask[TaskInfo.TIMESTAMP.value].split()
+    timestamp = convertToDatetime(myTimestamp[0], myTimestamp[1])
+    startTime = convertToDatetime(myDate, myTime[0])
+    endTime = convertToDatetime(myDate, myTime[1])
+    deltaDay = (startTime - timestamp).total_seconds()
+    myWeek = getWeek(startTime)
 
-        # 1st condition: a future time and at least 24 hours NOTE: not doing 24 hrs check
-        # 2nd condition: less than maximum hour
-        # 3rd condition: not a restricted hour
-        # 4th condition: not repeated
-        # 5th condition: current time slot has less than max tutors
-        if deltaDay < 0:
-            printError("It is not a future time-" + ADD_DECLINE, myName, startTime)
-            return
-        # disable this for now, hard to keep track
-        # elif len(tutorHours[myName]) >= MAX_HOURS:
-        #     printError("Has max hours-" + ADD_DECLINE, myName, startTime)
-        #    return
-        elif (myDate in restrictedHours and myTime in restrictedHours[myDate]):
-            printError("Restricted hours-" + ADD_DECLINE, myName, startTime)
-            return
-        elif str(startTime)[5:] in tutorHours[myName]:
-            printError("Already in timeslot-" + ADD_DECLINE, myName, startTime)
-            return
-        elif hourCount[str(startTime)[5:]] >= MAX_TUTORS:
-            printError("Has max tutors-" + ADD_DECLINE, myName, startTime)
-            return
+    repeatIndex = 0
+    while (lastHour - startTime).total_seconds() >= 0 and repeatIndex < repeatNum:
 
-        # check if event exists, if not, create one, if yes, update the title
-        myEvent = getEvent(startTime, service)
-        if myEvent is None: 
+      # 1st condition: a future time and at least 24 hours NOTE: not doing 24 hrs check
+      # 2nd condition: less than maximum hour
+      # 3rd condition: not a restricted hour
+      # 4th condition: not repeated
+      # 5th condition: current time slot has less than max tutors
+      if deltaDay < 0:
+        printError("It is not a future time-" + ADD_DECLINE, myName, startTime)
+        return
+      # disable this for now, hard to keep track
+      elif len(tutorHours[myName][myWeek-1]) >= MAX_HOURS:
+      	printError("Has max hours-" + ADD_DECLINE, myName, startTime)
+      	return
+      elif (myDate in restrictedHours and myTime[0] in restrictedHours[myDate]):
+        printError("Restricted hours-" + ADD_DECLINE, myName, startTime)
+        return
+      elif str(startTime) in tutorHours[myName][myWeek-1]:
+        printError("Already in timeslot-" + ADD_DECLINE, myName, startTime)
+        return
+      elif hourCount[str(startTime)[5:]] >= MAX_TUTORS:
+        printError("Has max tutors-" + ADD_DECLINE, myName, startTime)
+        return
 
-            # passed the conditions, add the event
-            event = {'summary': 'Tutor Hour (%s)' % (myName),
-            'start': {'dateTime': '%sT%s-07:00' % (startTime.date(), startTime.time())},
-            'end': {'dateTime': '%sT%s-07:00' % (endTime.date(), endTime.time())}
-            }
+      # check if event exists, if not, create one, if yes, update the title
+      myEvent = getEvent(startTime, service)
+      if myEvent is None: 
 
-            event = service.events().insert(calendarId=CAL_ID, body=event).execute()
-            print("created an event")
+          # passed the conditions, add the event
+          event = {'summary': 'Tutor Hour (%s)' % (myName),
+          'start': {'dateTime': '%sT%s-07:00' % (startTime.date(), startTime.time())},
+          'end': {'dateTime': '%sT%s-07:00' % (endTime.date(), endTime.time())}
+          }
 
-        else:
+          event = service.events().insert(calendarId=CAL_ID, body=event).execute()
+          print("created an event")
 
-            # update the current entry
-            openIndex = myEvent['summary'].find('(')
-            closeIndex = myEvent['summary'].find(')')
-            myEvent['summary'] = 'Tutor Hour (' + myEvent['summary'][openIndex+1:closeIndex] + ", " + myName + ')'
-            updated_event = service.events().update(calendarId=CAL_ID, eventId=myEvent['id'], body=myEvent).execute()
-            print("updated an event")
+      else:
 
-        # update the recorded hours for this tutor
-        tutorHours[myName].append(str(startTime.date())[5:] + " " + str(startTime.time()))
+          # update the current entry
+          openIndex = myEvent['summary'].find('(')
+          closeIndex = myEvent['summary'].find(')')
+          myEvent['summary'] = 'Tutor Hour (' + myEvent['summary'][openIndex+1:closeIndex] + ", " + myName + ')'
+          updated_event = service.events().update(calendarId=CAL_ID, eventId=myEvent['id'], body=myEvent).execute()
+          print("updated an event")
 
-        # increment the time by a week
-        startTime += datetime.timedelta(days = 7)
-        endTime += datetime.timedelta(days = 7)
-        repeatIndex += 1
+      # update the recorded hours for this tutor
+      tutorHours[myName][myWeek-1].append(str(startTime))
+
+      # increment the time by a week
+      startTime += datetime.timedelta(days = 7)
+      endTime += datetime.timedelta(days = 7)
+      repeatIndex += 1
 
 def removeRequest(myTask, service):
-    '''function to remove hour to calendar if it passes the condition'''
-    myName = names[myTask[TaskInfo.EMAIL.value]]
-    myDate = myTask[TaskInfo.DATE.value]
-    allTime = myTask[TaskInfo.TIME.value].split(', ')
-    repeatNum = int(myTask[TaskInfo.RECUR.value])
-    lastHour = convertToDatetime(LAST_DATE, LAST_HOUR)
+  '''function to remove hour to calendar if it passes the condition'''
+  myEmail = myTask[TaskInfo.EMAIL.value]
+  if myEmail not in names:
+  	printError("No name found-"+ REMOVE_DECLINE, myEmail, startTime)
 
-    for time in allTime:
+  myName = names[myEmail]
+  myDate = myTask[TaskInfo.DATE.value]
+  allTime = myTask[TaskInfo.TIME.value].split(', ')
+  repeatNum = int(myTask[TaskInfo.RECUR.value])
+  lastHour = convertToDatetime(LAST_DATE, LAST_HOUR)
 
-        # split start and end time
-        myTime = time.split('-')
+  for time in allTime:
 
-        # convert the time to 24 hr system
-        myTime[0] = convertTo24(myTime[0])
-        myTime[1] = convertTo24(myTime[1])
+    # split start and end time
+    myTime = time.split('-')
 
-        # get the datetime format of the current and future time
-        myTimestamp = myTask[TaskInfo.TIMESTAMP.value].split()
-        timestamp = convertToDatetime(myTimestamp[0], myTimestamp[1])
-        startTime = convertToDatetime(myDate, myTime[0])
+    # convert the time to 24 hr system
+    myTime[0] = convertTo24(myTime[0])
+    myTime[1] = convertTo24(myTime[1])
 
-        repeatIndex = 0
-        while (lastHour - startTime).total_seconds() >= 0 and repeatIndex < repeatNum:
+    # get the datetime format of the current and future time
+    myTimestamp = myTask[TaskInfo.TIMESTAMP.value].split()
+    timestamp = convertToDatetime(myTimestamp[0], myTimestamp[1])
+    startTime = convertToDatetime(myDate, myTime[0])
 
-          # check if it is a future time
-          deltaDay = (startTime - timestamp).total_seconds()
-          if deltaDay < 0:
-              printError("It is not a future time-" + REMOVE_DECLINE, myName, startTime)
-              return
+    repeatIndex = 0
+    while (lastHour - startTime).total_seconds() >= 0 and repeatIndex < repeatNum:
 
-          # get the event with this start time
-          myEvent = getEvent(startTime, service)
+      # check if it is a future time
+      deltaDay = (startTime - timestamp).total_seconds()
+      if deltaDay < 0:
+          printError("It is not a future time-" + REMOVE_DECLINE, myName, startTime)
+          return
 
-          # check if hour exists, if not, no hours to remove
-          if myEvent is None:
-              printError("Hour doesn't exist-", REMOVE_DECLINE, myName, startTime)
-              return
+      # get the event with this start time
+      myEvent = getEvent(startTime, service)
 
+      # check if hour exists, if not, no hours to remove
+      if myEvent is None:
+          printError("Hour doesn't exist-", REMOVE_DECLINE, myName, startTime)
+          return
+
+      else:
+          # update the current entry
+          openIndex = myEvent['summary'].find('(')
+          closeIndex = myEvent['summary'].find(')')
+          listOfNames = myEvent['summary'][openIndex+1:closeIndex].split(', ')
+          listOfNames.remove(myName)
+
+          # case for no tutors in this slot
+          if len(listOfNames) == 0:
+              service.events().delete(calendarId=CAL_ID, eventId=myEvent['id']).execute()
+
+          # case for removing this one tutor from this slot by updating the title
           else:
-              # update the current entry
-              openIndex = myEvent['summary'].find('(')
-              closeIndex = myEvent['summary'].find(')')
-              listOfNames = myEvent['summary'][openIndex+1:closeIndex].split(', ')
-              listOfNames.remove(myName)
+              strNames = listOfNames[0]
+              for i in range(1, len(listOfNames)):
+                  strNames += ", " + listOfNames[i]
+              myEvent['summary'] = 'Tutor Hour (' + strNames + ')'
+              updated_event = service.events().update(calendarId=CAL_ID, eventId=myEvent['id'], body=myEvent).execute()
 
-              # case for no tutors in this slot
-              if len(listOfNames) == 0:
-                  service.events().delete(calendarId=CAL_ID, eventId=myEvent['id']).execute()
-
-              # case for removing this one tutor from this slot by updating the title
-              else:
-                  strNames = listOfNames[0]
-                  for i in range(1, len(listOfNames)):
-                      strNames += ", " + listOfNames[i]
-                  myEvent['summary'] = 'Tutor Hour (' + strNames + ')'
-                  updated_event = service.events().update(calendarId=CAL_ID, eventId=myEvent['id'], body=myEvent).execute()
-
-          # increment the time by a week
-          startTime += datetime.timedelta(days = 7)
-          repeatIndex += 1
+      # increment the time by a week
+      startTime += datetime.timedelta(days = 7)
+      repeatIndex += 1
 
 def readRequests():
     ''' function to read in the requests from google forms'''
     global masterTasks
-    if os.path.isfile("8B_requests.txt"):
-        with open ("8B_requests.txt") as myFile:
+    if os.path.isfile(FILE_REQUEST):
+        with open (FILE_REQUEST) as myFile:
             masterTasks = myFile.readlines()
 
     # list of tuples: (timestamp, email, task, date, times, special)
@@ -401,6 +436,9 @@ def main():
     # read requests and process them
     readRequests()
     processRequests(service)
+
+    # double check print
+    printTutorHours()
 
 if __name__ == '__main__':
     main()
